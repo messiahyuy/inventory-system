@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>食品效期與庫存管理系統</title>
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --border: #e5e7eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 24px;
+            color: #1e293b;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 表單區域 */
+        .form-card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            height: fit-content;
+        }
+
+        .form-card h2 {
+            font-size: 1.25rem;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #4b5563;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            border-color: var(--primary);
+        }
+
+        button.btn-add {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button.btn-add:hover {
+            background-color: var(--primary-hover);
+        }
+
+        /* 列表區與控制列 */
+        .list-section {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            background: var(--card-bg);
+            padding: 12px 16px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            flex-wrap: wrap;
+        }
+
+        .controls input, .controls select {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            outline: none;
+        }
+
+        .btn-expired-filter {
+            padding: 8px 12px;
+            border: 1px solid var(--danger);
+            border-radius: 6px;
+            background: white;
+            color: var(--danger);
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-expired-filter.active {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-simulate {
+            padding: 8px 12px;
+            border: 1px solid var(--success);
+            border-radius: 6px;
+            background: var(--success);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-simulate:disabled {
+            cursor: wait;
+            opacity: 0.65;
+        }
+
+        .api-status {
+            min-height: 1.25rem;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+
+        .api-status.error {
+            color: var(--danger);
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        /* 食品網格 */
+        .food-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+        .food-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border-left: 6px solid var(--border);
+            position: relative;
+        }
+
+        /* 狀態顏色條邊框與標籤 */
+        .food-card.status-good { border-left-color: var(--success); }
+        .food-card.status-warning { border-left-color: var(--warning); }
+        .food-card.status-expired { border-left-color: var(--danger); }
+
+        .food-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .food-name {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .badge.good { background-color: var(--success); }
+        .badge.warning { background-color: var(--warning); }
+        .badge.expired { background-color: var(--danger); }
+
+        .food-details {
+            font-size: 0.875rem;
+            color: #6b7280;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+
+        .inventory-record {
+            white-space: pre-line;
+        }
+
+        .food-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid var(--border);
+            padding-top: 10px;
+        }
+
+        .btn-delete {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .btn-delete:hover {
+            text-decoration: underline;
+        }
+
+        .empty-msg {
+            text-align: center;
+            grid-column: 1 / -1;
+            padding: 40px;
+            color: #9ca3af;
+        }
+
+        .inventory-panel {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            width: min(720px, calc(100vw - 40px));
+            max-height: 80vh;
+            border: none;
+        }
+
+        .inventory-panel::backdrop {
+            background: rgba(15, 23, 42, 0.45);
+        }
+
+        .inventory-panel h2 {
+            font-size: 1.1rem;
+            margin-bottom: 12px;
+        }
+
+        .inventory-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .inventory-item {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            color: #4b5563;
+        }
+
+        .inventory-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .inventory-panel-header h2 {
+            margin-bottom: 0;
+        }
+
+        .btn-close {
+            border: none;
+            background: none;
+            color: #6b7280;
+            cursor: pointer;
+            font-size: 1.25rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="main-view">
+    <h1>🍎 食品效期與庫存管理</h1>
+
+    <div class="container">
+        <!-- 新增食品表單 -->
+        <div class="form-card">
+            <h2>新增食品</h2>
+            <form id="foodForm">
+                <div class="form-group">
+                    <label for="name">食品名稱 *</label>
+                    <input type="text" id="name" required placeholder="例如：鮮乳、全麥麵包">
+                </div>
+                <div class="form-group">
+                    <label for="category">類別</label>
+                    <select id="category" name="category" required>
+                        <option value="鮮食">鮮食（便當、飯糰、三明治、涼麵）</option>
+                        <option value="飲料">飲料（現煮咖啡、包裝茶飲、乳品、果汁）</option>
+                        <option value="烘焙">烘焙（袋裝麵包、蛋糕、吐司）</option>
+                        <option value="零食">零食（洋洋片、糖果、餅乾、堅果）</option>
+                        <option value="冰品">冰品（霜淇淋、冰棒、桶裝冰淇淋）</option>
+                        <option value="冷凍食品">冷凍食品（微波微烤即食微波包、冷凍水餃）</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="expDate">有效期限 *</label>
+                    <input type="date" id="expDate" required>
+                </div>
+                <div class="form-group">
+                    <label for="quantity">數量</label>
+                    <input type="number" id="quantity" value="1" min="1">
+                </div>
+                <div class="form-group">
+                    <label for="location">存放位置</label>
+                    <input type="text" id="location" placeholder="例如：冰箱上層、A3層架">
+                </div>
+                <button type="submit" class="btn-add">加入庫存</button>
+            </form>
+        </div>
+
+        <!-- 食品列表區域 -->
+        <div class="list-section">
+            <!-- 搜尋與篩選列 -->
+            <div class="controls">
+                <input type="text" id="searchInput" class="search-input" placeholder="搜尋食品名稱或位置...">
+                <select id="filterCategory">
+                    <option value="所有類別">所有類別</option>
+                    <option value="鮮食">鮮食</option>
+                    <option value="飲料">飲料</option>
+                    <option value="烘焙">烘焙</option>
+                    <option value="零食">零食</option>
+                    <option value="冰品">冰品</option>
+                    <option value="冷凍食品">冷凍食品</option>
+                    <option value="其他">其他</option>
+                </select>
+                <select id="sortBy">
+                    <option value="expAsc">效期近到遠</option>
+                    <option value="expDesc">效期遠到近</option>
+                </select>
+                <button type="button" id="expiredFilterBtn" class="btn-expired-filter" aria-pressed="false">查看已過期</button>
+                <button type="button" id="simulateInventoryBtn" class="btn-simulate">模擬兩天進貨與販售</button>
+                <button type="button" id="viewInventoryBtn" class="btn-simulate">查看進銷清單</button>
+            </div>
+            <p id="apiStatus" class="api-status" role="status" aria-live="polite"></p>
+
+            <!-- 卡片容器 -->
+            <div class="food-grid" id="foodGrid">
+                <!-- 動態繪製卡片內容 -->
+            </div>
+
+        </div>
+    </div>
+    </div>
+
+    <!-- 獨立進銷清單頁面 -->
+    <div id="report-view" style="display: none; padding: 20px;">
+        <button type="button" class="btn-simulate" onclick="showMainView()" style="margin-bottom: 20px;">← 返回庫存管理</button>
+        <h2>📊 類別進銷與庫存統計</h2>
+        <div id="category-report-list"></div>
+    </div>
+
+    <script>
+        // 後端 API：Spring Boot 預設運行於 http://localhost:8080
+        const API_BASE_URL = 'http://localhost:8080/food/mysql';
+        let foodList = [];
+        let showExpiredOnly = false;
+
+        // DOM 元素
+        const foodForm = document.getElementById('foodForm');
+        const foodGrid = document.getElementById('foodGrid');
+        const searchInput = document.getElementById('searchInput');
+        const filterCategory = document.getElementById('filterCategory');
+        const sortBy = document.getElementById('sortBy');
+        const expiredFilterBtn = document.getElementById('expiredFilterBtn');
+        const simulateInventoryBtn = document.getElementById('simulateInventoryBtn');
+        const viewInventoryBtn = document.getElementById('viewInventoryBtn');
+        const apiStatus = document.getElementById('apiStatus');
+
+        // 初始化預設日期為今天
+        document.getElementById('expDate').valueAsDate = new Date();
+
+        // 監聽表單提交
+        foodForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitButton = foodForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+
+            try {
+                await requestApi('', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        title: document.getElementById('name').value.trim(),
+                        type: document.getElementById('category').value,
+                        expirationDate: document.getElementById('expDate').value,
+                        quantity: parseInt(document.getElementById('quantity').value, 10) || 1,
+                        location: document.getElementById('location').value.trim() || '未指定',
+                        price: 0
+                    })
+                });
+                foodForm.reset();
+                document.getElementById('expDate').valueAsDate = new Date();
+                setApiStatus('食品已新增。');
+                await loadFoods();
+            } catch (error) {
+                setApiStatus(error.message, true);
+            } finally {
+                submitButton.disabled = false;
+            }
+        });
+
+        async function requestApi(path, options = {}) {
+            const response = await fetch(`${API_BASE_URL}${path}`, {
+                headers: options.body ? { 'Content-Type': 'application/json' } : {},
+                ...options
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => ({}));
+                throw new Error(errorBody.detail || `操作失敗（HTTP ${response.status}）。`);
+            }
+
+            return response.status === 204 ? null : response.json();
+        }
+
+        function setApiStatus(message, isError = false) {
+            apiStatus.textContent = message;
+            apiStatus.classList.toggle('error', isError);
+        }
+
+        async function loadFoods() {
+            try {
+                setApiStatus('載入資料中…');
+                const foods = await requestApi('/all');
+                foodList = foods.map(food => ({
+                    id: food.id,
+                    name: food.title,
+                    category: food.type,
+                    expDate: food.expirationDate,
+                    quantity: food.quantity,
+                    location: food.location || '未指定',
+                    inventoryRecord: food.inventoryRecord || ''
+                }));
+                setApiStatus(`已載入 ${foodList.length} 筆食品資料。`);
+                renderList();
+            } catch (error) {
+                foodList = [];
+                renderList();
+                setApiStatus(`無法連線到後端：${error.message} 請確認 Spring Boot 已在 http://localhost:8080 啟動。`, true);
+            }
+        }
+
+        // 刪除食品
+        async function deleteItem(id) {
+            try {
+                await requestApi(`/${id}`, { method: 'DELETE' });
+                setApiStatus('食品已刪除。');
+                await loadFoods();
+            } catch (error) {
+                setApiStatus(error.message, true);
+            }
+        }
+
+        // 計算剩餘天數與狀態
+        function getExpiryStatus(expDateStr) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // 歸零時間部分，僅比較日期
+            
+            const expDate = new Date(expDateStr);
+            expDate.setHours(0, 0, 0, 0);
+
+            const diffTime = expDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays < 0) {
+                return { statusClass: 'status-expired', badgeClass: 'expired', text: `已過期 ${Math.abs(diffDays)} 天` };
+            } else if (diffDays <= 3) {
+                return { statusClass: 'status-warning', badgeClass: 'warning', text: diffDays === 0 ? '今天到期' : `剩 ${diffDays} 天` };
+            } else {
+                return { statusClass: 'status-good', badgeClass: 'good', text: `剩 ${diffDays} 天` };
+            }
+        }
+
+        // 渲染食品列表
+        function renderList() {
+            const searchKeyword = searchInput.value.toLowerCase();
+            const categoryFilter = filterCategory.value;
+            const sortOrder = sortBy.value;
+
+            // 1. 篩選
+            let filtered = foodList.filter(item => {
+                const matchesSearch = item.name.toLowerCase().includes(searchKeyword) || 
+                                      item.location.toLowerCase().includes(searchKeyword);
+                const matchesCategory = categoryFilter === '所有類別' || item.category === categoryFilter;
+                const matchesExpiry = !showExpiredOnly || getExpiryStatus(item.expDate).badgeClass === 'expired';
+                return matchesSearch && matchesCategory && matchesExpiry;
+            });
+
+            // 2. 排序
+            filtered.sort((a, b) => {
+                const dateA = new Date(a.expDate);
+                const dateB = new Date(b.expDate);
+                return sortOrder === 'expAsc' ? dateA - dateB : dateB - dateA;
+            });
+
+            // 3. 生成 HTML
+            foodGrid.innerHTML = '';
+            if (filtered.length === 0) {
+                foodGrid.innerHTML = '<div class="empty-msg">沒有找到符合的食品項目</div>';
+                return;
+            }
+
+            filtered.forEach(item => {
+                const status = getExpiryStatus(item.expDate);
+                const card = document.createElement('div');
+                card.className = `food-card ${status.statusClass}`;
+
+                card.innerHTML = `
+                    <div>
+                        <div class="food-header">
+                            <div class="food-name">${escapeHtml(item.name)}</div>
+                            <span class="badge ${status.badgeClass}">${status.text}</span>
+                        </div>
+                        <div class="food-details">
+                            <span>🏷️ 類別：${escapeHtml(item.category)}</span>
+                            <span>📅 到期日：${item.expDate}</span>
+                            <span>📍 位置：${escapeHtml(item.location)}</span>
+                            <span>📦 數量：${item.quantity}</span>
+                            <span class="inventory-record">📋 庫存變化紀錄：${item.inventoryRecord ? escapeHtml(item.inventoryRecord) : '尚未模擬'}</span>
+                        </div>
+                    </div>
+                    <div class="food-actions">
+                        <span></span>
+                        <button class="btn-delete" onclick="deleteItem('${item.id}')">刪除</button>
+                    </div>
+                `;
+                foodGrid.appendChild(card);
+            });
+
+        }
+
+        function showInventoryReport() {
+            document.getElementById('main-view').style.display = 'none';
+            document.getElementById('report-view').style.display = 'block';
+            renderCategoryReport();
+        }
+
+        function showMainView() {
+            document.getElementById('report-view').style.display = 'none';
+            document.getElementById('main-view').style.display = 'block';
+        }
+
+        function parseInventoryRecord(inventoryRecord) {
+            return (inventoryRecord || '').split('\n').filter(Boolean).map(record => {
+                const match = record.match(/^(\d{4}-\d{2}-\d{2})：進貨 \+(\d+)，販售 -(\d+)，庫存 (\d+)$/);
+                if (!match) return null;
+                return { date: match[1], inQty: match[2], outQty: match[3], stock: match[4] };
+            }).filter(Boolean);
+        }
+
+        function renderCategoryReport() {
+            const container = document.getElementById('category-report-list');
+            container.innerHTML = '';
+
+            const categories = {};
+            foodList.forEach(item => {
+                const category = item.category || '其他';
+                if (!categories[category]) categories[category] = [];
+                categories[category].push(item);
+            });
+
+            const categoryNames = Object.keys(categories);
+            if (categoryNames.length === 0) {
+                container.innerHTML = '<div class="empty-msg">尚無食品資料可統計</div>';
+                return;
+            }
+
+            categoryNames.forEach((categoryName, index) => {
+                const items = categories[categoryName];
+                const totalStock = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+                const detailId = `cat-detail-${index}`;
+                const card = document.createElement('div');
+                card.className = 'category-card';
+                card.style.cssText = 'border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; padding: 15px; background: #fff;';
+
+                const itemDetails = items.map(item => {
+                    const history = parseInventoryRecord(item.inventoryRecord);
+                    const historyRows = history.length ? history.map(entry => `
+                        <tr>
+                            <td style="padding: 4px;">${entry.date}</td>
+                            <td style="padding: 4px; color: green;">+${entry.inQty}</td>
+                            <td style="padding: 4px; color: red;">-${entry.outQty}</td>
+                            <td style="padding: 4px; font-weight: bold;">${entry.stock}</td>
+                        </tr>`).join('') : '<tr><td colspan="4" style="padding: 4px; color: #6b7280;">尚無進銷紀錄</td></tr>';
+
+                    return `
+                        <div style="margin-bottom: 12px; background: #f9f9f9; padding: 10px; border-radius: 5px;">
+                            <div style="font-weight: bold; margin-bottom: 5px;">📦 ${escapeHtml(item.name)}（當前庫存：${item.quantity}）</div>
+                            <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;">
+                                <thead><tr style="border-bottom: 1px solid #ccc;"><th style="padding: 4px;">日期</th><th style="padding: 4px;">進貨</th><th style="padding: 4px;">販售</th><th style="padding: 4px;">結餘庫存</th></tr></thead>
+                                <tbody>${historyRows}</tbody>
+                            </table>
+                        </div>`;
+                }).join('');
+
+                card.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; gap: 12px;" onclick="toggleCategoryDetail('${detailId}')">
+                        <h3 style="margin: 0;">🏷️ ${escapeHtml(categoryName)} <span style="font-size: 14px; color: #666;">(${items.length} 項商品)</span></h3>
+                        <div><strong style="margin-right: 15px;">總庫存：${totalStock}</strong><span>👇 點擊查看進銷明細</span></div>
+                    </div>
+                    <div id="${detailId}" style="display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">${itemDetails}</div>`;
+                container.appendChild(card);
+            });
+        }
+
+        function toggleCategoryDetail(id) {
+            const element = document.getElementById(id);
+            element.style.display = element.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // 防止 XSS 攻擊的轉義處理
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, function(m) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[m];
+            });
+        }
+
+        // 搜尋與控制項事件監聽
+        searchInput.addEventListener('input', renderList);
+        filterCategory.addEventListener('change', renderList);
+        sortBy.addEventListener('change', renderList);
+        expiredFilterBtn.addEventListener('click', () => {
+            showExpiredOnly = !showExpiredOnly;
+            expiredFilterBtn.classList.toggle('active', showExpiredOnly);
+            expiredFilterBtn.setAttribute('aria-pressed', showExpiredOnly);
+            expiredFilterBtn.textContent = showExpiredOnly ? '顯示全部食品' : '查看已過期';
+            renderList();
+        });
+        simulateInventoryBtn.addEventListener('click', async () => {
+            simulateInventoryBtn.disabled = true;
+            try {
+                await requestApi('/simulate?days=2', { method: 'POST' });
+                setApiStatus('已完成兩天的進貨與販售模擬。');
+                await loadFoods();
+            } catch (error) {
+                setApiStatus(error.message, true);
+            } finally {
+                simulateInventoryBtn.disabled = false;
+            }
+        });
+        viewInventoryBtn.addEventListener('click', showInventoryReport);
+
+        // 初始載入資料庫內容
+        loadFoods();
+    </script>
+</body>
+</html>
